@@ -6,3 +6,5 @@ import torch
 edges = torch.load("./edges.pt", map_location=torch.device("cpu"))
 edge_weights = torch.load("./edges_weight.pt", map_location=torch.device('cpu')).to_dense()
 node_embed = torch.load("./nodes_feature_pause.pt", map_location=torch.device('cpu'))
+
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

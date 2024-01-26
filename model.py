@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-import logging
 import GLOBAL
+
 
 class GraphAttentionLayer(nn.Module):
     """
@@ -10,17 +10,17 @@ class GraphAttentionLayer(nn.Module):
     """
     def __init__(self, in_features, out_features, dropout, alpha, mu=0.001, concat=False):
         super(GraphAttentionLayer, self).__init__()
-        self.in_features = in_features  
-        self.out_features = out_features 
-        self.dropout = dropout 
-        self.alpha = alpha 
+        self.in_features = in_features
+        self.out_features = out_features
+        self.dropout = dropout
+        self.alpha = alpha
         self.concat = concat
         self.mu = mu
 
         self.W = nn.Parameter(torch.zeros(size=(in_features, out_features)))
-        nn.init.xavier_uniform_(self.W.data, gain=1.414) 
+        nn.init.xavier_uniform_(self.W.data, gain=1.414)
         self.a = nn.Parameter(torch.zeros(size=(2 * out_features, 1)))
-        nn.init.xavier_uniform_(self.a.data, gain=1.414)  
+        nn.init.xavier_uniform_(self.a.data, gain=1.414)
 
         self.leakyrelu = nn.LeakyReLU(self.alpha)
 
@@ -40,7 +40,7 @@ class GraphAttentionLayer(nn.Module):
         # (B, N, 1)
         e = self.leakyrelu(torch.matmul(a_input, self.a))
         attention = F.softmax(e, dim=1)
-        
+
         # mu是阈值，用于阻断较小的注意力值（认为其更可能是错误的）
         attention = attention - self.mu
         # 筛掉由于减mu出现的负值
@@ -52,7 +52,7 @@ class GraphAttentionLayer(nn.Module):
         attention = attention.reshape(B, 1, N)
         # (B, 1, N) * (B, N, out_features) => (B, 1, out_features)
         h_prime = torch.matmul(attention, h).squeeze(1)
-       
+
         if self.concat:
             return F.elu(h_prime)
         else:
@@ -60,12 +60,12 @@ class GraphAttentionLayer(nn.Module):
 
 
 class BiLSTM_Attention(torch.nn.Module):
-    def __init__(self, args, input_size, hidden_size, num_layers, dropout, alpha, mu):
+    def __init__(self):
         super(BiLSTM_Attention, self).__init__()
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        self.embedding_dim = args.embedding_dim
-        self.num_neighbor = args.num_neighbor
+        self.hidden_size = GLOBAL.args.BiLSTM_hidden_size
+        self.num_layers = GLOBAL.args.BiLSTM_num_layers
+        self.embedding_dim = GLOBAL.args.embedding_dim
+        self.num_neighbor = GLOBAL.args.num_neighbor
 
         # 将实体和关系的特征维度映射为同一维度
         self.ent_mapping = nn.Linear(GLOBAL.node_embed.shape[-1], self.embedding_dim)
@@ -73,9 +73,21 @@ class BiLSTM_Attention(torch.nn.Module):
         nn.init.xavier_normal_(self.ent_mapping.weight)
         nn.init.xavier_normal_(self.rel_mapping.weight)
 
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True)
-        self.attention = GraphAttentionLayer(self.hidden_size * 2 * 3, self.hidden_size * 2 * 3, dropout=dropout, alpha=alpha, mu=mu, concat=False)
-
+        self.lstm = nn.LSTM(
+            self.embedding_dim,
+            self.hidden_size,
+            self.num_layers,
+            batch_first=True,
+            bidirectional=True,
+        )
+        self.attention = GraphAttentionLayer(
+            self.hidden_size * 2 * 3,
+            self.hidden_size * 2 * 3,
+            dropout=GLOBAL.args.dropout,
+            alpha=GLOBAL.args.alpha,
+            mu=GLOBAL.args.mu,
+            concat=False,
+        )
 
     def forward(self, batch_h, batch_r, batch_t):
         head = self.ent_mapping(batch_h).reshape(-1, self.embedding_dim)

@@ -14,13 +14,15 @@ def getNeighborId(entity_id: int) -> List[int]:
     return a + b
 
 
-def getTripleNeighbor(edge_id: int, num_neighbor: int) -> List[List[int]]:
+def getTripleNeighbor(edge_id: int) -> List[List[int]]:
     """
     边序号为edge_id的三元组分别在两个视图的num_neighbor个邻居
 
     Returns:
         组成batch的三元组的id: (2, num_neighbor+1)
     """
+    num_neighbor = GLOBAL.args.num_neighbor
+
     head_neighbor_ids = getNeighborId(GLOBAL.edges[edge_id][0])
     tail_neighbor_ids = getNeighborId(GLOBAL.edges[edge_id][1])
     head_neighbor_ids.remove(edge_id)
@@ -44,7 +46,7 @@ def getTripleNeighbor(edge_id: int, num_neighbor: int) -> List[List[int]]:
 
 
 def get_pair_batch(
-    batch_id:int, seq:List[int], batch_size:int, num_neighbor:int
+    batch_id: int, seq: List[int]
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]:
     """
     论文代码的损失函数有点抽象, 和论文中写的好像不太一样, 以下是我的猜测:
@@ -74,6 +76,8 @@ def get_pair_batch(
         其中node_embed_dim为CompanyKG数据集实体嵌入维度,
         选用不同的模型有不同的维度, 例如PAUSE为32维;
     """
+    batch_size = GLOBAL.args.batch_size
+
     # 每个epoch开头再重新打乱一下
     if batch_id == 0:
         random.shuffle(seq)
@@ -88,7 +92,7 @@ def get_pair_batch(
     ids += [i + len(seq) for i in ids]
 
     # (batch_size*2, 2, num_neighbor+1)
-    batch_triples_id = list(map(lambda x: getTripleNeighbor(x, num_neighbor), ids))
+    batch_triples_id = list(map(getTripleNeighbor, ids))
     batch_triples_id = torch.tensor(batch_triples_id)
 
     batch_h = GLOBAL.node_embed[GLOBAL.edges[:, 0][batch_triples_id]]

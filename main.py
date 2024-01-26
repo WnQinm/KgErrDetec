@@ -7,7 +7,7 @@ import GLOBAL
 from model import BiLSTM_Attention
 
 def train():
-    seq = list(range(GLOBAL.edges.shape[0] // 2))
+    seq = list(range(GLOBAL.edges.shape[0]))
     num_iterations = math.ceil(GLOBAL.edges.shape[0] / GLOBAL.args.batch_size)
     model = BiLSTM_Attention().to(GLOBAL.DEVICE)
     criterion = nn.MarginRankingLoss(GLOBAL.args.gama)
@@ -18,10 +18,6 @@ def train():
     for k in range(GLOBAL.args.max_epoch):
         for it in range(num_iterations):
             batch_h, batch_r, batch_t, batch_size = get_pair_batch(it, seq)
-
-            batch_h = batch_h.to(GLOBAL.DEVICE)
-            batch_r = batch_r.to(GLOBAL.DEVICE)
-            batch_t = batch_t.to(GLOBAL.DEVICE)
 
             out, out_att = model(batch_h, batch_r, batch_t)
 

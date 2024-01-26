@@ -33,11 +33,11 @@ parser.add_argument('--anomaly_ratio', default=0.05, type=float, help="anomaly r
 parser.add_argument('--num_anomaly_num', default=300, type=int, help="number of anomalies")
 args = parser.parse_args()
 
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 # edges: (edge_num, 2)
 # edge_weights: (edge_num, 15)
 # node_embed(PAUSE): (node_num, 32)
-edges = torch.load(os.path.join(args.data_path, "edges.pt"), map_location=torch.device("cpu"))
-edge_weights = torch.load(os.path.join(args.data_path, "edges_weight.pt"), map_location=torch.device('cpu')).to_dense()
-node_embed = torch.load(os.path.join(args.data_path, "nodes_feature_pause.pt"), map_location=torch.device('cpu'))
-
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+edges = torch.load(os.path.join(args.data_path, "edges.pt"), map_location=DEVICE)
+edge_weights = torch.load(os.path.join(args.data_path, "edges_weight.pt"), map_location=DEVICE).to_dense()
+node_embed = torch.load(os.path.join(args.data_path, "nodes_feature_pause.pt"), map_location=DEVICE)

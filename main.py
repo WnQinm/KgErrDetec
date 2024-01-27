@@ -36,12 +36,13 @@ def train():
     dataloader = DataLoader(dataset=dataset, 
                             batch_size=GLOBAL.args.batch_size, 
                             shuffle=True, 
-                            num_workers=22, 
-                            collate_fn=lambda b: companyKgDataCollator(b, dataset), 
+                            num_workers=16, # 16-18
+                            collate_fn=companyKgDataCollator, 
                             pin_memory=True, 
-                            drop_last=True)
-    num_iterations = math.ceil(dataset.edges.shape[0] / GLOBAL.args.batch_size)
-    model = BiLSTM_Attention(dataset.node_embed.shape[-1], dataset.edge_weights.shape[-1]).to(GLOBAL.DEVICE)
+                            drop_last=True, 
+                            prefetch_factor=8)
+    num_iterations = math.ceil(GLOBAL.edges.shape[0] / GLOBAL.args.batch_size)
+    model = BiLSTM_Attention(GLOBAL.node_embed.shape[-1], GLOBAL.edge_weights.shape[-1]).to(GLOBAL.DEVICE)
     criterion = nn.MarginRankingLoss(GLOBAL.args.gama)
     optimizer = torch.optim.Adam(model.parameters(), lr=GLOBAL.args.learning_rate)
     

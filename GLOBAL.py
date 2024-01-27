@@ -1,16 +1,18 @@
 import torch
 import argparse
+import os
+import json
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument('--seed', default=0, type=int, help='random seed')
 parser.add_argument('--mode', default='train', choices=['train', 'test'], help='run training or evaluation')
 parser.add_argument('--save_dir', default=f'./checkpoints/', help='model output directory')
 parser.add_argument('--load_model_path', default=f'./checkpoints/')
-parser.add_argument('--save_iter', default=100, help='How many iterations to save the checkpoint')
+parser.add_argument('--save_iter', default=1000, help='How many iterations to save the checkpoint')
 
 # data
 parser.add_argument('--data_path', default=f'./', help='path to the dataset')
-parser.add_argument('--batch_size', default=256, type=int, help='batch size')
+parser.add_argument('--batch_size', default=2048, type=int, help='batch size')
 
 # model architecture
 parser.add_argument('--BiLSTM_hidden_size', default=32, type=int, help='BiLSTM hidden size, 模型输出的特征维度将是hidden_size*2*3')
@@ -31,3 +33,16 @@ parser.add_argument('--mu', default=0.001, type=float, help="gated attention par
 args = parser.parse_args()
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# edges: (edge_num, 2)
+# edge_weights: (edge_num, 15)
+# node_embed(PAUSE): (node_num, 32)
+edges = torch.load(os.path.join(args.data_path, "edges.pt")).to(torch.int32)
+edge_weights = torch.load(os.path.join(args.data_path, "edges_weight.pt")).to_dense().to(torch.float32)
+node_embed = torch.load(os.path.join(args.data_path, "nodes_feature_pause.pt")).to(torch.float32)
+
+f = open(os.path.join(args.data_path, "ent2rel.json"), 'r')
+ent2rel = json.load(f)
+f.close()
+
+# 22核CPU 90G内存 4090 24G显存 

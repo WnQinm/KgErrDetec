@@ -1,6 +1,4 @@
 import random
-import os
-import json
 import torch
 from torch.distributions import Categorical
 from torch.utils.data import Dataset
@@ -9,26 +7,14 @@ from typing import List, Tuple
 
 
 class CompanyKgDataset(Dataset):
-    def __init__(self):
-        # edges: (edge_num, 2)
-        # edge_weights: (edge_num, 15)
-        # node_embed(PAUSE): (node_num, 32)
-        self.edges = torch.load(os.path.join(GLOBAL.args.data_path, "edges.pt")).to(torch.int32)
-        self.edge_weights = torch.load(os.path.join(GLOBAL.args.data_path, "edges_weight.pt")).to_dense().to(torch.float32)
-        self.node_embed = torch.load(os.path.join(GLOBAL.args.data_path, "nodes_feature_pause.pt")).to(torch.float32)
-
-        f = open(os.path.join(GLOBAL.args.data_path, "ent2rel.json"), 'r')
-        self.ent2rel = json.load(f)
-        f.close()
-    
     def __len__(self):
-        return self.edges.shape[0]
+        return GLOBAL.edges.shape[0]
     
     def __getitem__(self, index):
         return index
 
 
-def generateAnomalousTriples(ids: List[int], dataset: CompanyKgDataset) -> torch.Tensor:
+def generateAnomalousTriples(ids: List[int]) -> torch.Tensor:
     """
     根据edges[ids]中每个三元组, 通过替换头或尾生成异常三元组,
     输出负三元组训练batch [[head, tail], ...]
@@ -37,21 +23,21 @@ def generateAnomalousTriples(ids: List[int], dataset: CompanyKgDataset) -> torch
     只能动态生成, 一个batch_size用4090大约2秒
     """
     neg_triples = None
-    num_entity = dataset.node_embed.shape[0]
+    num_entity = GLOBAL.node_embed.shape[0]
     for i in ids:
-        head, tail = dataset.edges[i][0], dataset.edges[i][1]
+        head, tail = GLOBAL.edges[i][0], GLOBAL.edges[i][1]
         head_or_tail = random.randint(0, 1)
         while True:
             if head_or_tail == 0:
                 new_head = random.randint(0, num_entity - 1)
                 new_tail = tail
-                rel_id = dataset.ent2rel[str(tail.detach().item())]
+                rel_id = GLOBAL.ent2rel[str(tail.detach().item())]
             else:
                 new_head = head
                 new_tail = random.randint(0, num_entity - 1)
-                rel_id = dataset.ent2rel[str(head.detach().item())]
+                rel_id = GLOBAL.ent2rel[str(head.detach().item())]
             anomaly = torch.tensor([new_head, new_tail])
-            rel_temp = dataset.edges[torch.tensor(rel_id)]
+            rel_temp = GLOBAL.edges[torch.tensor(rel_id)]
 
             if neg_triples is None:
                 if (torch.sum(torch.eq(rel_temp, anomaly), dim=1) != 2).all():
@@ -67,17 +53,17 @@ def generateAnomalousTriples(ids: List[int], dataset: CompanyKgDataset) -> torch
     return neg_triples
 
 
-def getNeighborId(entity_id: torch.Tensor, neg_triples: torch.Tensor, dataset: CompanyKgDataset) -> torch.Tensor:
+def getNeighborId(entity_id: torch.Tensor, neg_triples: torch.Tensor) -> torch.Tensor:
     """
     获取序号为entity_id的实体在正负三元组数据集中的邻居的序号
     """
-    n = torch.tensor(dataset.ent2rel[str(entity_id.detach().item())])
+    n = torch.tensor(GLOBAL.ent2rel[str(entity_id.detach().item())])
     a = torch.nonzero(neg_triples[:, 0] == entity_id).squeeze(dim=1)
     b = torch.nonzero(neg_triples[:, 1] == entity_id).squeeze(dim=1)
     return torch.cat([n, a, b])
 
 
-def getTripleNeighbor(edge_id: torch.Tensor, edges_with_anomaly: torch.Tensor, neg_triples: torch.Tensor, dataset: CompanyKgDataset) -> torch.Tensor:
+def getTripleNeighbor(edge_id: torch.Tensor, edges_with_anomaly: torch.Tensor, neg_triples: torch.Tensor) -> torch.Tensor:
     """
     边序号为edge_id的三元组分别在两个视图、包括edges和neg_triples里的num_neighbor个邻居
 
@@ -86,8 +72,8 @@ def getTripleNeighbor(edge_id: torch.Tensor, edges_with_anomaly: torch.Tensor, n
     """
     num_neighbor = GLOBAL.args.num_neighbor
 
-    head_neighbor_ids = getNeighborId(edges_with_anomaly[edge_id][0], neg_triples, dataset)
-    tail_neighbor_ids = getNeighborId(edges_with_anomaly[edge_id][1], neg_triples, dataset)
+    head_neighbor_ids = getNeighborId(edges_with_anomaly[edge_id][0], neg_triples)
+    tail_neighbor_ids = getNeighborId(edges_with_anomaly[edge_id][1], neg_triples)
     head_neighbor_ids[head_neighbor_ids != edge_id]
     tail_neighbor_ids[tail_neighbor_ids != edge_id]
     head_neighbor_ids.device
@@ -114,24 +100,24 @@ def getTripleNeighbor(edge_id: torch.Tensor, edges_with_anomaly: torch.Tensor, n
     return torch.stack([head_neighbor_ids, tail_neighbor_ids])
 
 
-def companyKgDataCollator(batch, dataset:CompanyKgDataset):
+def companyKgDataCollator(batch):
     ids = batch
-    rel_num = dataset.edges.shape[0]
+    rel_num = GLOBAL.edges.shape[0]
 
     # 生成batch_size个数据作为异常数据加入到edges最后
-    neg_triples = generateAnomalousTriples(ids, dataset)
-    edges_with_anomaly = torch.cat([dataset.edges, neg_triples], dim=0)
+    neg_triples = generateAnomalousTriples(ids)
+    edges_with_anomaly = torch.cat([GLOBAL.edges, neg_triples], dim=0)
 
     ids += list(range(rel_num, rel_num + len(ids)))
 
     # (batch_size*2, 2, num_neighbor+1)
-    batch_triples_id = torch.stack(list(map(lambda x: getTripleNeighbor(x, edges_with_anomaly, neg_triples, dataset), ids)))
+    batch_triples_id = torch.stack(list(map(lambda x: getTripleNeighbor(x, edges_with_anomaly, neg_triples), ids)))
 
-    batch_h = dataset.node_embed[edges_with_anomaly[:, 0][batch_triples_id]]
-    batch_t = dataset.node_embed[edges_with_anomaly[:, 1][batch_triples_id]]
+    batch_h = GLOBAL.node_embed[edges_with_anomaly[:, 0][batch_triples_id]]
+    batch_t = GLOBAL.node_embed[edges_with_anomaly[:, 1][batch_triples_id]]
 
     # 异常三元组的边权重为其在edges_with_anomaly的索引减去edges的长度
     batch_triples_id = batch_triples_id * (batch_triples_id < rel_num) + torch.max((batch_triples_id * (batch_triples_id >= rel_num) - rel_num), torch.tensor([0]))
-    batch_r = dataset.edge_weights[batch_triples_id]
+    batch_r = GLOBAL.edge_weights[batch_triples_id]
 
     return batch_h, batch_r, batch_t

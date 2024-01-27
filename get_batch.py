@@ -21,17 +21,19 @@ def generateAnomalousTriples(ids: List[int]) -> torch.Tensor:
             if head_or_tail == 0:
                 new_head = random.randint(0, num_entity - 1)
                 new_tail = tail
+                rel_id = GLOBAL.ent2rel[str(tail.detach().item())]
             else:
                 new_head = head
                 new_tail = random.randint(0, num_entity - 1)
+                rel_id = GLOBAL.ent2rel[str(head.detach().item())]
             anomaly = torch.tensor([new_head, new_tail], device=GLOBAL.DEVICE)
-
+            rel_temp = GLOBAL.edges[torch.tensor(rel_id, device=GLOBAL.DEVICE)]
             # 这里很慢
             if neg_triples is None:
-                if (torch.sum(torch.eq(GLOBAL.edges, anomaly), dim=1) != 2).all():
+                if (torch.sum(torch.eq(rel_temp, anomaly), dim=1) != 2).all():
                     break
             else:
-                if (torch.sum(torch.eq(GLOBAL.edges, anomaly), dim=1) != 2).all() and (
+                if (torch.sum(torch.eq(rel_temp, anomaly), dim=1) != 2).all() and (
                     torch.sum(torch.eq(neg_triples, anomaly), dim=1) != 2).all():
                     break
         if neg_triples is None:

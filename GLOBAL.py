@@ -1,7 +1,5 @@
 import torch
 import argparse
-import os
-import json
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument('--seed', default=0, type=int, help='random seed')
@@ -11,7 +9,7 @@ parser.add_argument('--load_model_path', default=f'./checkpoints/')
 parser.add_argument('--save_iter', default=100, help='How many iterations to save the checkpoint')
 
 # data
-parser.add_argument('--data_path', default=f'./data/', help='path to the dataset')
+parser.add_argument('--data_path', default=f'./', help='path to the dataset')
 parser.add_argument('--batch_size', default=256, type=int, help='batch size')
 
 # model architecture
@@ -32,16 +30,4 @@ parser.add_argument('--lam', default=0.1, type=float, help="trade-off parameter"
 parser.add_argument('--mu', default=0.001, type=float, help="gated attention parameter")
 args = parser.parse_args()
 
-# DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-DEVICE = torch.device('cpu')
-
-# edges: (edge_num, 2)
-# edge_weights: (edge_num, 15)
-# node_embed(PAUSE): (node_num, 32)
-edges = torch.load(os.path.join(args.data_path, "edges.pt"), map_location=DEVICE).to(torch.int32)
-edge_weights = torch.load(os.path.join(args.data_path, "edges_weight.pt"), map_location=DEVICE).to_dense().to(torch.float32)
-node_embed = torch.load(os.path.join(args.data_path, "nodes_feature_pause.pt"), map_location=DEVICE).to(torch.float32)
-
-f = open(os.path.join(args.data_path, "ent2rel.json"), 'r')
-ent2rel = json.load(f)
-f.close()
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

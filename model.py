@@ -60,7 +60,7 @@ class GraphAttentionLayer(nn.Module):
 
 
 class BiLSTM_Attention(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, node_embed_dim, edge_weights_dim):
         super(BiLSTM_Attention, self).__init__()
         self.hidden_size = GLOBAL.args.BiLSTM_hidden_size
         self.num_layers = GLOBAL.args.BiLSTM_num_layers
@@ -68,8 +68,8 @@ class BiLSTM_Attention(torch.nn.Module):
         self.num_neighbor = GLOBAL.args.num_neighbor
 
         # 将实体和关系的特征维度映射为同一维度
-        self.ent_mapping = nn.Linear(GLOBAL.node_embed.shape[-1], self.embedding_dim)
-        self.rel_mapping = nn.Linear(GLOBAL.edge_weights.shape[-1], self.embedding_dim)
+        self.ent_mapping = nn.Linear(node_embed_dim, self.embedding_dim)
+        self.rel_mapping = nn.Linear(edge_weights_dim, self.embedding_dim)
         nn.init.xavier_normal_(self.ent_mapping.weight)
         nn.init.xavier_normal_(self.rel_mapping.weight)
 

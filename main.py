@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 import random
 import math
-from get_batch import get_pair_batch
+from get_batch import CompanyKgDataset, companyKgDataCollator
 import GLOBAL
 from model import BiLSTM_Attention
 import numpy as np
@@ -31,16 +32,27 @@ def train():
     min_loss = np.inf
     iter_loss = []  # 每args.save_iter会计算平均值并清空
 
-    seq = list(range(GLOBAL.edges.shape[0]))
-    num_iterations = math.ceil(GLOBAL.edges.shape[0] / GLOBAL.args.batch_size)
-    model = BiLSTM_Attention().to(GLOBAL.DEVICE)
+    dataset = CompanyKgDataset()
+    dataloader = DataLoader(dataset=dataset, 
+                            batch_size=GLOBAL.args.batch_size, 
+                            shuffle=True, 
+                            num_workers=22, 
+                            collate_fn=lambda b: companyKgDataCollator(b, dataset), 
+                            pin_memory=True, 
+                            drop_last=True)
+    num_iterations = math.ceil(dataset.edges.shape[0] / GLOBAL.args.batch_size)
+    model = BiLSTM_Attention(dataset.node_embed.shape[-1], dataset.edge_weights.shape[-1]).to(GLOBAL.DEVICE)
     criterion = nn.MarginRankingLoss(GLOBAL.args.gama)
     optimizer = torch.optim.Adam(model.parameters(), lr=GLOBAL.args.learning_rate)
     
     pbar = tqdm(total=GLOBAL.args.max_epoch*num_iterations)
     for k in range(GLOBAL.args.max_epoch):
-        for it in range(num_iterations):
-            batch_h, batch_r, batch_t, batch_size = get_pair_batch(it, seq)
+        it = 0
+        for batch_h, batch_r, batch_t in dataloader:
+
+            batch_h = batch_h.to(GLOBAL.DEVICE)
+            batch_r = batch_r.to(GLOBAL.DEVICE)
+            batch_t = batch_t.to(GLOBAL.DEVICE)
 
             out, out_att = model(batch_h, batch_r, batch_t)
 
@@ -68,7 +80,7 @@ def train():
                                   neg_h[:, 2 * 2 * GLOBAL.args.BiLSTM_hidden_size:2 * 3 * GLOBAL.args.BiLSTM_hidden_size], 
                                   p=2, dim=1)
 
-            y = -torch.ones(batch_size//2).to(GLOBAL.DEVICE)
+            y = -torch.ones(GLOBAL.args.batch_size).to(GLOBAL.DEVICE)
             
             loss = criterion(pos_loss, neg_loss, y)
 
@@ -91,9 +103,9 @@ def train():
                     torch.save(model.state_dict(), model_save_path+'/best.ckpt')
                 torch.save(model.state_dict(), model_save_path+'/latest.ckpt')
             pbar.update(1)
+            it += 1
 
-                
-            
+
 def test():
     pass
 

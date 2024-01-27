@@ -1,5 +1,6 @@
 import random
 import torch
+from torch.distributions import Categorical
 import GLOBAL
 from typing import List, Tuple
 
@@ -28,7 +29,7 @@ def generateAnomalousTriples(ids: List[int]) -> torch.Tensor:
                 rel_id = GLOBAL.ent2rel[str(head.detach().item())]
             anomaly = torch.tensor([new_head, new_tail], device=GLOBAL.DEVICE)
             rel_temp = GLOBAL.edges[torch.tensor(rel_id, device=GLOBAL.DEVICE)]
-            # 这里很慢
+
             if neg_triples is None:
                 if (torch.sum(torch.eq(rel_temp, anomaly), dim=1) != 2).all():
                     break
@@ -43,20 +44,17 @@ def generateAnomalousTriples(ids: List[int]) -> torch.Tensor:
     return neg_triples
 
 
-def getNeighborId(entity_id: int, dataset: torch.Tensor) -> List[int]:
+def getNeighborId(entity_id: torch.Tensor, neg_triples: torch.Tensor) -> torch.Tensor:
     """
     获取序号为entity_id的实体在正负三元组数据集中的邻居的序号
     """
-    a = torch.nonzero(dataset[:, 0] == entity_id).squeeze().tolist()
-    b = torch.nonzero(dataset[:, 1] == entity_id).squeeze().tolist()
-
-    a = [a] if type(a) is int else a
-    b = [b] if type(b) is int else b
-
-    return a + b
+    n = torch.tensor(GLOBAL.ent2rel[str(entity_id.detach().item())], device=GLOBAL.DEVICE)
+    a = torch.nonzero(neg_triples[:, 0] == entity_id).squeeze(dim=1)
+    b = torch.nonzero(neg_triples[:, 1] == entity_id).squeeze(dim=1)
+    return torch.cat([n, a, b])
 
 
-def getTripleNeighbor(edge_id: int, dataset: torch.Tensor) -> List[List[int]]:
+def getTripleNeighbor(edge_id: torch.Tensor, edges_with_anomaly: torch.Tensor, neg_triples: torch.Tensor) -> torch.Tensor:
     """
     边序号为edge_id的三元组分别在两个视图、包括edges和neg_triples里的num_neighbor个邻居
 
@@ -65,26 +63,32 @@ def getTripleNeighbor(edge_id: int, dataset: torch.Tensor) -> List[List[int]]:
     """
     num_neighbor = GLOBAL.args.num_neighbor
 
-    head_neighbor_ids = getNeighborId(dataset[edge_id][0], dataset)
-    tail_neighbor_ids = getNeighborId(dataset[edge_id][1], dataset)
-    head_neighbor_ids.remove(edge_id)
-    tail_neighbor_ids.remove(edge_id)
+    head_neighbor_ids = getNeighborId(edges_with_anomaly[edge_id][0], neg_triples)
+    tail_neighbor_ids = getNeighborId(edges_with_anomaly[edge_id][1], neg_triples)
+    head_neighbor_ids[head_neighbor_ids != edge_id]
+    tail_neighbor_ids[tail_neighbor_ids != edge_id]
+    head_neighbor_ids.device
 
-    if len(head_neighbor_ids) >= num_neighbor:
-        head_neighbor_ids = random.sample(head_neighbor_ids, k=num_neighbor)
-    elif len(head_neighbor_ids) > 0:
-        head_neighbor_ids = random.choices(head_neighbor_ids, k=num_neighbor)
+    if head_neighbor_ids.shape[0] >= num_neighbor:
+        head_neighbor_ids = torch.randperm(head_neighbor_ids.shape[0], device=GLOBAL.DEVICE)[:num_neighbor]
+    elif head_neighbor_ids.shape[0] > 0:
+        m = Categorical(torch.ones(head_neighbor_ids.shape[0]))
+        head_neighbor_ids = head_neighbor_ids[m.sample((num_neighbor,))]
     else:
-        head_neighbor_ids = [edge_id] * num_neighbor
+        head_neighbor_ids = torch.tensor([edge_id], device=GLOBAL.DEVICE).repeat(num_neighbor, 1).squeeze(dim=1)
 
-    if len(tail_neighbor_ids) >= num_neighbor:
-        tail_neighbor_ids = random.sample(tail_neighbor_ids, k=num_neighbor)
-    elif len(tail_neighbor_ids) > 0:
-        tail_neighbor_ids = random.choices(tail_neighbor_ids, k=num_neighbor)
+    if tail_neighbor_ids.shape[0] >= num_neighbor:
+        tail_neighbor_ids = torch.randperm(tail_neighbor_ids.shape[0], device=GLOBAL.DEVICE)[:num_neighbor]
+    elif tail_neighbor_ids.shape[0] > 0:
+        m = Categorical(torch.ones(tail_neighbor_ids.shape[0]))
+        tail_neighbor_ids = tail_neighbor_ids[m.sample((num_neighbor,))]
     else:
-        tail_neighbor_ids = [edge_id] * num_neighbor
+        tail_neighbor_ids = torch.tensor([edge_id], device=GLOBAL.DEVICE).repeat(num_neighbor, 1).squeeze(dim=1)
 
-    return [[edge_id] + head_neighbor_ids, [edge_id] + tail_neighbor_ids]
+    head_neighbor_ids = torch.cat([torch.tensor([edge_id], device=GLOBAL.DEVICE), head_neighbor_ids])
+    tail_neighbor_ids = torch.cat([torch.tensor([edge_id], device=GLOBAL.DEVICE), tail_neighbor_ids])
+
+    return torch.stack([head_neighbor_ids, tail_neighbor_ids])
 
 
 def get_pair_batch(
@@ -118,13 +122,13 @@ def get_pair_batch(
         ids = seq[batch_id * batch_size : (batch_id + 1) * batch_size]
 
     # 生成batch_size个数据作为异常数据加入到edges最后
-    edges_with_anomaly = torch.cat([GLOBAL.edges, generateAnomalousTriples(ids)], dim=0)
+    neg_triples = generateAnomalousTriples(ids)
+    edges_with_anomaly = torch.cat([GLOBAL.edges, neg_triples], dim=0)
 
     ids += list(range(rel_num, rel_num + len(ids)))
 
     # (batch_size*2, 2, num_neighbor+1)
-    batch_triples_id = list(map(lambda x: getTripleNeighbor(x, edges_with_anomaly), ids))
-    batch_triples_id = torch.tensor(batch_triples_id, device=GLOBAL.DEVICE)
+    batch_triples_id = torch.stack(list(map(lambda x: getTripleNeighbor(x, edges_with_anomaly, neg_triples), ids)))
 
     batch_h = GLOBAL.node_embed[edges_with_anomaly[:, 0][batch_triples_id]]
     batch_t = GLOBAL.node_embed[edges_with_anomaly[:, 1][batch_triples_id]]

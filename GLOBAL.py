@@ -7,10 +7,10 @@ parser.add_argument('--seed', default=0, type=int, help='random seed')
 parser.add_argument('--mode', default='train', choices=['train', 'test'], help='run training or evaluation')
 parser.add_argument('--save_dir', default=f'./checkpoints/', help='model output directory')
 parser.add_argument('--load_model_path', default=f'./checkpoints/')
-parser.add_argument('--log_folder', default=f'./checkpoints/', help='model output directory')
+parser.add_argument('--save_iter', default=100, help='How many iterations to save the checkpoint')
 
 # data
-parser.add_argument('--data_path', default=f'./data/', help='path to the dataset')
+parser.add_argument('--data_path', default=f'./', help='path to the dataset')
 parser.add_argument('--batch_size', default=256, type=int, help='batch size')
 
 # model architecture
@@ -29,8 +29,6 @@ parser.add_argument('--learning_rate', default=0.003, type=float, help='learning
 parser.add_argument('--gama', default=0.5, type=float, help="margin parameter")
 parser.add_argument('--lam', default=0.1, type=float, help="trade-off parameter")
 parser.add_argument('--mu', default=0.001, type=float, help="gated attention parameter")
-parser.add_argument('--anomaly_ratio', default=0.05, type=float, help="anomaly ratio")
-parser.add_argument('--num_anomaly_num', default=300, type=int, help="number of anomalies")
 args = parser.parse_args()
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

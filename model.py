@@ -111,6 +111,6 @@ class BiLSTM_Attention(torch.nn.Module):
         # (batch_size * 2 * 2, hidden_size * 2 * 3)
         out_att = self.attention(out)
 
-        out = out.reshape(-1, self.num_neighbor * 2 + 2, self.hidden_size * 2 * self.seq_length)
+        out = out.reshape(-1, self.num_neighbor * 2 + 2, self.hidden_size * 2 * 3)
 
         return out[:, 0, :], out_att

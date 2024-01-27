@@ -30,7 +30,6 @@ def train():
     
     min_loss = np.inf
     iter_loss = []  # 每args.save_iter会计算平均值并清空
-    all_loss = []   # 不会清空, 可以用来看走势
 
     seq = list(range(GLOBAL.edges.shape[0]))
     num_iterations = math.ceil(GLOBAL.edges.shape[0] / GLOBAL.args.batch_size)
@@ -42,10 +41,6 @@ def train():
     for k in range(GLOBAL.args.max_epoch):
         for it in range(num_iterations):
             batch_h, batch_r, batch_t, batch_size = get_pair_batch(it, seq)
-            
-            batch_h = batch_h.to(torch.float32)
-            batch_r = batch_r.to(torch.float32)
-            batch_t = batch_t.to(torch.float32)
 
             out, out_att = model(batch_h, batch_r, batch_t)
 
@@ -82,17 +77,21 @@ def train():
             optimizer.step()
 
             iter_loss.append(loss.detach().cpu().item())
-            all_loss.append(loss.detach().cpu().item())
             # 模型保存和日志打印
-            if num_iterations > 0 and num_iterations % GLOBAL.args.save_iter == 0:
+            if it > 0 and it % GLOBAL.args.save_iter == 0:
                 iter_mean_loss = np.mean(iter_loss)
+                f = open(model_save_path+'/loss.txt', 'w')
+                for l in iter_loss:
+                    f.write(str(l)+'\n')
+                f.close()
                 iter_loss = []
                 logging.info(f'epoch {k}, iter {it}: mean loss {iter_mean_loss}')
                 if iter_mean_loss < min_loss:
                     min_loss = iter_mean_loss
-                    torch.save(model.state_dict(), model_save_path+'best.ckpt')
-                torch.save(model.state_dict(), model_save_path+'latest.ckpt')
+                    torch.save(model.state_dict(), model_save_path+'/best.ckpt')
+                torch.save(model.state_dict(), model_save_path+'/latest.ckpt')
             pbar.update(1)
+
                 
             
 def test():

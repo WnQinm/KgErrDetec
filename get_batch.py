@@ -24,7 +24,7 @@ def generateAnomalousTriples(ids: List[int]) -> torch.Tensor:
             else:
                 new_head = head
                 new_tail = random.randint(0, num_entity - 1)
-            anomaly = torch.tensor([new_head, new_tail]).to(GLOBAL.DEVICE)
+            anomaly = torch.tensor([new_head, new_tail], device=GLOBAL.DEVICE)
 
             # 这里很慢
             if neg_triples is None:
@@ -122,13 +122,13 @@ def get_pair_batch(
 
     # (batch_size*2, 2, num_neighbor+1)
     batch_triples_id = list(map(lambda x: getTripleNeighbor(x, edges_with_anomaly), ids))
-    batch_triples_id = torch.tensor(batch_triples_id).to(GLOBAL.DEVICE)
+    batch_triples_id = torch.tensor(batch_triples_id, device=GLOBAL.DEVICE)
 
     batch_h = GLOBAL.node_embed[edges_with_anomaly[:, 0][batch_triples_id]]
     batch_t = GLOBAL.node_embed[edges_with_anomaly[:, 1][batch_triples_id]]
 
     # 异常三元组的边权重为其在edges_with_anomaly的索引减去edges的长度
-    batch_triples_id = batch_triples_id * (batch_triples_id < rel_num) + torch.max((batch_triples_id * (batch_triples_id >= rel_num) - rel_num), torch.tensor([0]).to(GLOBAL.DEVICE))
+    batch_triples_id = batch_triples_id * (batch_triples_id < rel_num) + torch.max((batch_triples_id * (batch_triples_id >= rel_num) - rel_num), torch.tensor([0], device=GLOBAL.DEVICE))
     batch_r = GLOBAL.edge_weights[batch_triples_id]
 
     return batch_h, batch_r, batch_t, len(ids)

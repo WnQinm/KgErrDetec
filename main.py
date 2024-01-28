@@ -9,26 +9,14 @@ from model import BiLSTM_Attention
 import numpy as np
 
 from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 from datetime import datetime
 import os
 import logging
+import sys
 
 
-def train():
-    year = str(datetime.now().year)
-    month = str(datetime.now().month)
-    month = '0'+month if len(month)==1 else month
-    day = str(datetime.now().day)
-    day = '0'+day if len(day)==1 else day
-    model_save_path = os.path.join(GLOBAL.args.save_dir + f'{year+month+day}')
-    if not os.path.exists(model_save_path):
-        os.makedirs(model_save_path)
-    
-    logging.basicConfig(level=logging.INFO)
-    file_handler = logging.FileHandler(os.path.join(model_save_path, 'log.txt'))
-    logger = logging.getLogger()
-    logger.addHandler(file_handler)
-    
+def train(model_save_path):    
     min_loss = np.inf
     iter_loss = []  # 每args.save_iter会计算平均值并清空
 
@@ -36,17 +24,17 @@ def train():
     dataloader = DataLoader(dataset=dataset, 
                             batch_size=GLOBAL.args.batch_size, 
                             shuffle=True, 
-                            num_workers=16, # 16-18
+                            num_workers=GLOBAL.args.num_workers, 
                             collate_fn=companyKgDataCollator, 
                             pin_memory=True, 
                             drop_last=True, 
-                            prefetch_factor=8)
+                            prefetch_factor=GLOBAL.args.prefetch_factor)
     num_iterations = math.ceil(GLOBAL.edges.shape[0] / GLOBAL.args.batch_size)
     model = BiLSTM_Attention(GLOBAL.node_embed.shape[-1], GLOBAL.edge_weights.shape[-1]).to(GLOBAL.DEVICE)
     criterion = nn.MarginRankingLoss(GLOBAL.args.gama)
     optimizer = torch.optim.Adam(model.parameters(), lr=GLOBAL.args.learning_rate)
     
-    pbar = tqdm(total=GLOBAL.args.max_epoch*num_iterations)
+    pbar = tqdm(total=GLOBAL.args.max_epoch*num_iterations, file=sys.stderr)
     for k in range(GLOBAL.args.max_epoch):
         it = 0
         for batch_h, batch_r, batch_t in dataloader:
@@ -117,7 +105,22 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         torch.cuda.manual_seed(GLOBAL.args.seed)
 
-    if GLOBAL.args.mode == 'train':
-        train()
-    elif GLOBAL.args.mode == 'test':
-        test()
+    year = str(datetime.now().year)
+    month = str(datetime.now().month)
+    month = '0'+month if len(month)==1 else month
+    day = str(datetime.now().day)
+    day = '0'+day if len(day)==1 else day
+    model_save_path = os.path.join(GLOBAL.args.save_dir + f'{year+month+day}')
+    if not os.path.exists(model_save_path):
+        os.makedirs(model_save_path)
+    
+    logging.basicConfig(level=logging.INFO)
+    file_handler = logging.FileHandler(os.path.join(model_save_path, 'log.txt'))
+    logger = logging.getLogger()
+    logger.addHandler(file_handler)
+
+    with logging_redirect_tqdm():
+        if GLOBAL.args.mode == 'train':
+            train(model_save_path)
+        elif GLOBAL.args.mode == 'test':
+            test()

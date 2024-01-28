@@ -8,7 +8,9 @@ parser.add_argument('--seed', default=0, type=int, help='random seed')
 parser.add_argument('--mode', default='train', choices=['train', 'test'], help='run training or evaluation')
 parser.add_argument('--save_dir', default=f'./checkpoints/', help='model output directory')
 parser.add_argument('--load_model_path', default=f'./checkpoints/')
-parser.add_argument('--save_iter', default=1000, help='How many iterations to save the checkpoint')
+parser.add_argument('--save_iter', default=1000, help='每多少iter打印一次损失并保存checkpoint')
+parser.add_argument('--num_workers', default=16, help='同时启用多个进程在cpu加载数据, 以平衡加载数据和训练数据的速度差距, 推荐为cpu物理核心数-1或-2')
+parser.add_argument('--prefetch_factor', default=8, help='每个进程预加载的batch数量, 配合num_workers尽可能保证gpu不空闲')
 
 # data
 parser.add_argument('--data_path', default=f'./', help='path to the dataset')
@@ -21,15 +23,15 @@ parser.add_argument('--num_neighbor', default=39, type=int, help='number of neig
 parser.add_argument('--embedding_dim', default=32, type=int, help='实体和关系需要嵌入到同一维度')
 
 # regularization
-parser.add_argument('--alpha', type=float, default=0.2, help='hyperparameter alpha')
+parser.add_argument('--alpha', type=float, default=0.2, help='leakyrelu hyperparameter alpha')
 parser.add_argument('--dropout', type=float, default=0.2, help='dropout for EaGNN')
 
 # optimization
 parser.add_argument('--max_epoch', default=1, help='max epochs')
 parser.add_argument('--learning_rate', default=0.003, type=float, help='learning rate')
-parser.add_argument('--gama', default=0.5, type=float, help="margin parameter")
-parser.add_argument('--lam', default=0.1, type=float, help="trade-off parameter")
-parser.add_argument('--mu', default=0.001, type=float, help="gated attention parameter")
+parser.add_argument('--gama', default=0.5, type=float, help="margin parameter(MarginRankingLoss)")
+parser.add_argument('--lam', default=0.1, type=float, help="嵌入损失和对比损失的比例")
+parser.add_argument('--mu', default=0.001, type=float, help="在GAT中阻断小于mu的注意力值(认为其更可能是错误的三元组故而筛掉)")
 args = parser.parse_args()
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

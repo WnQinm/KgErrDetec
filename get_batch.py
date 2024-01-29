@@ -3,7 +3,7 @@ import torch
 from torch.distributions import Categorical
 from torch.utils.data import Dataset
 import GLOBAL
-from typing import List, Tuple
+from typing import List
 
 
 class CompanyKgDataset(Dataset):
@@ -100,7 +100,7 @@ def getTripleNeighbor(edge_id: torch.Tensor, edges_with_anomaly: torch.Tensor, n
     return torch.stack([head_neighbor_ids, tail_neighbor_ids])
 
 
-def companyKgDataCollator(batch):
+def companyKgTrainDataCollator(batch):
     ids = batch
     rel_num = GLOBAL.edges.shape[0]
 
@@ -121,3 +121,32 @@ def companyKgDataCollator(batch):
     batch_r = GLOBAL.edge_weights[batch_triples_id]
 
     return batch_h, batch_r, batch_t
+
+
+def companyKgTestDataCollator(batch):
+    ids = batch
+    rel_num = GLOBAL.edges.shape[0]
+
+    # 生成batch_size个数据作为异常数据加入到edges最后
+    neg_triples = generateAnomalousTriples(ids)
+    edges_with_anomaly = torch.cat([GLOBAL.edges, neg_triples], dim=0)
+
+    labels = torch.cat([torch.ones(len(ids), dtype=torch.int), torch.zeros(len(ids), dtype=torch.int)])
+
+    ids += list(range(rel_num, rel_num + len(ids)))
+
+    # (batch_size*2, 2, num_neighbor+1)
+    batch_triples_id = torch.stack(list(map(lambda x: getTripleNeighbor(x, edges_with_anomaly, neg_triples), ids)))
+
+    shuffle = torch.randperm(len(ids))
+    labels = labels[shuffle]
+    batch_triples_id = batch_triples_id[shuffle]
+
+    batch_h = GLOBAL.node_embed[edges_with_anomaly[:, 0][batch_triples_id]]
+    batch_t = GLOBAL.node_embed[edges_with_anomaly[:, 1][batch_triples_id]]
+
+    # 异常三元组的边权重为其在edges_with_anomaly的索引减去edges的长度
+    batch_triples_id = batch_triples_id * (batch_triples_id < rel_num) + torch.max((batch_triples_id * (batch_triples_id >= rel_num) - rel_num), torch.tensor([0]))
+    batch_r = GLOBAL.edge_weights[batch_triples_id]
+
+    return batch_h, batch_r, batch_t, labels

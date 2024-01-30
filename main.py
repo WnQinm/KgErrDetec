@@ -15,7 +15,7 @@ import os
 import logging
 
 
-def train(model_save_path):    
+def train(model_save_path):
     min_loss = np.inf
     iter_loss = []  # 每args.save_iter会计算平均值并清空
 
@@ -30,6 +30,7 @@ def train(model_save_path):
                             prefetch_factor=GLOBAL.args.prefetch_factor)
     model = BiLSTM_Attention(GLOBAL.node_embed.shape[-1], GLOBAL.edge_weights.shape[-1]).to(GLOBAL.DEVICE)
     if GLOBAL.args.train_existing_model:
+        logging.info(f'continue training the model {GLOBAL.args.load_model_path}\n')
         model.load_state_dict(torch.load(GLOBAL.args.load_model_path))
     criterion = nn.MarginRankingLoss(GLOBAL.args.gama)
     optimizer = torch.optim.Adam(model.parameters(), lr=GLOBAL.args.learning_rate)
@@ -84,7 +85,7 @@ def train(model_save_path):
             # 模型保存和日志打印
             if it % GLOBAL.args.save_iter == 0:
                 iter_mean_loss = np.mean(iter_loss)
-                f = open(model_save_path+'/loss.txt', 'w')
+                f = open(model_save_path+'/loss.txt', 'a')
                 for l in iter_loss:
                     f.write(str(l)+'\n')
                 f.close()
@@ -176,6 +177,10 @@ def test():
             logging.info(f'\tratio {ratios[i].detach().item():.2f}/0.5 acc {mean_accs[i].detach().item():.2f} recall {mean_recalls[i].detach().item():.2f}')
 
 
+def final():
+    pass
+
+
 if __name__ == '__main__':
     random.seed(GLOBAL.args.seed)
     torch.manual_seed(GLOBAL.args.seed)
@@ -199,6 +204,10 @@ if __name__ == '__main__':
 
     with logging_redirect_tqdm():
         if GLOBAL.args.mode == 'train':
+            print('-'*10)
+            for k in GLOBAL.args.__dict__:
+                logging.info(k + ": " + str(GLOBAL.args.__dict__[k]))
+            print('-'*10)
             train(model_save_path)
         elif GLOBAL.args.mode == 'test':
             test()

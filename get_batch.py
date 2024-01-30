@@ -3,7 +3,7 @@ import torch
 from torch.distributions import Categorical
 from torch.utils.data import Dataset
 import GLOBAL
-from typing import List
+from typing import List, Optional
 
 
 class CompanyKgDataset(Dataset):
@@ -53,17 +53,20 @@ def generateAnomalousTriples(ids: List[int]) -> torch.Tensor:
     return neg_triples
 
 
-def getNeighborId(entity_id: torch.Tensor, neg_triples: torch.Tensor) -> torch.Tensor:
+def getNeighborId(entity_id: torch.Tensor, neg_triples: Optional[torch.Tensor]) -> torch.Tensor:
     """
     获取序号为entity_id的实体在正负三元组数据集中的邻居的序号
     """
     n = torch.tensor(GLOBAL.ent2rel[str(entity_id.detach().item())])
-    a = torch.nonzero(neg_triples[:, 0] == entity_id).squeeze(dim=1)
-    b = torch.nonzero(neg_triples[:, 1] == entity_id).squeeze(dim=1)
-    return torch.cat([n, a, b])
+    if neg_triples is None:
+        return n
+    else:
+        a = torch.nonzero(neg_triples[:, 0] == entity_id).squeeze(dim=1)
+        b = torch.nonzero(neg_triples[:, 1] == entity_id).squeeze(dim=1)
+        return torch.cat([n, a, b])
 
 
-def getTripleNeighbor(edge_id: torch.Tensor, edges_with_anomaly: torch.Tensor, neg_triples: torch.Tensor) -> torch.Tensor:
+def getTripleNeighbor(edge_id: torch.Tensor, edges_with_anomaly: torch.Tensor, neg_triples: Optional[torch.Tensor]) -> torch.Tensor:
     """
     边序号为edge_id的三元组分别在两个视图、包括edges和neg_triples里的num_neighbor个邻居
 
@@ -150,3 +153,13 @@ def companyKgTestDataCollator(batch):
     batch_r = GLOBAL.edge_weights[batch_triples_id]
 
     return batch_h, batch_r, batch_t, labels
+
+
+def companyKgFinalDataCollator(batch):
+    ids = batch
+    batch_triples_id = torch.stack(list(map(lambda x: getTripleNeighbor(x, GLOBAL.edges, None), ids)))
+    batch_h = GLOBAL.node_embed[GLOBAL.edges[:, 0][batch_triples_id]]
+    batch_r = GLOBAL.edge_weights[batch_triples_id]
+    batch_t = GLOBAL.node_embed[GLOBAL.edges[:, 1][batch_triples_id]]
+    # (batch_size, 2, num_neighbor+1, embed_dim)
+    return batch_h, batch_r, batch_t

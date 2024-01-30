@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import random
 import math
 from get_batch import CompanyKgDataset, companyKgTrainDataCollator, companyKgTestDataCollator
@@ -34,6 +35,7 @@ def train(model_save_path):
         model.load_state_dict(torch.load(GLOBAL.args.load_model_path))
     criterion = nn.MarginRankingLoss(GLOBAL.args.gama)
     optimizer = torch.optim.Adam(model.parameters(), lr=GLOBAL.args.learning_rate)
+    scheduler = CosineAnnealingLR(optimizer=optimizer, T_max=GLOBAL.args.T_max, eta_min=GLOBAL.args.eta_min)
     
     num_iterations = math.floor(GLOBAL.edges.shape[0] / GLOBAL.args.batch_size)
     pbar = tqdm(total=GLOBAL.args.max_epoch*num_iterations)
@@ -78,6 +80,7 @@ def train(model_save_path):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            scheduler.step()
 
             iter_loss.append(loss.detach().cpu().item())
 

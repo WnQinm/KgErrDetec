@@ -121,7 +121,7 @@ def test():
 
     ratios = [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
     ratios = torch.tensor(ratios, dtype=torch.float32, device=GLOBAL.DEVICE)
-    num2ratios = torch.ceil(ratios * (GLOBAL.args.batch_size * 2)).int()
+    num2ratios = torch.ceil(ratios * (GLOBAL.args.batch_size * 2)).long()
 
     with torch.no_grad():
         accs = None

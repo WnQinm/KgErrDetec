@@ -57,12 +57,14 @@ def getNeighborId(entity_id: torch.Tensor, neg_triples: Optional[torch.Tensor]) 
     """
     获取序号为entity_id的实体在正负三元组数据集中的邻居的序号
     """
-    n = torch.tensor(GLOBAL.ent2rel[str(entity_id.detach().item())])
+    n = torch.tensor(GLOBAL.ent2rel[str(entity_id.detach().item())], dtype=torch.int64)
     if neg_triples is None:
         return n
     else:
-        a = torch.nonzero(neg_triples[:, 0] == entity_id).squeeze(dim=1)
-        b = torch.nonzero(neg_triples[:, 1] == entity_id).squeeze(dim=1)
+        a = torch.nonzero(neg_triples[:, 0] == entity_id).squeeze(dim=1) + GLOBAL.edges.shape[0]
+        b = torch.nonzero(neg_triples[:, 1] == entity_id).squeeze(dim=1) + GLOBAL.edges.shape[0]
+        a = a.long()
+        b = b.long()
         return torch.cat([n, a, b])
 
 
@@ -79,7 +81,6 @@ def getTripleNeighbor(edge_id: torch.Tensor, edges_with_anomaly: torch.Tensor, n
     tail_neighbor_ids = getNeighborId(edges_with_anomaly[edge_id][1], neg_triples)
     head_neighbor_ids[head_neighbor_ids != edge_id]
     tail_neighbor_ids[tail_neighbor_ids != edge_id]
-    head_neighbor_ids.device
 
     if head_neighbor_ids.shape[0] >= num_neighbor:
         head_neighbor_ids = torch.randperm(head_neighbor_ids.shape[0])[:num_neighbor]
